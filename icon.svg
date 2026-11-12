@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="鱼鱼的衣橱">
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="#2a2229"/>
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="none" stroke="#4a3d47" stroke-width="2"/>
+  <path d="M64 34.5a7.5 7.5 0 1 1 7.5 7.5c0 3.2-2.4 4.8-5 6.2" fill="none" stroke="#e9d8c6" stroke-width="4.6" stroke-linecap="round"/>
+  <path d="M66.5 49.4 30.8 71.2a6 6 0 0 0 3.3 11.1h59.8a6 6 0 0 0 3.3-11.1L66.5 49.4Z" fill="none" stroke="#e9d8c6" stroke-width="4.6" stroke-linejoin="round"/>
+  <path d="M47 94.5h34" stroke="#b9768c" stroke-width="4.6" stroke-linecap="round"/>
+</svg>
