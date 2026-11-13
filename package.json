@@ -3,7 +3,7 @@
   "version": "2.4.0",
   "private": true,
   "type": "module",
-  "description": "鱼鱼的衣橱：系列/套浏览、字段明细、标签检索、能出门筛选、随机一套、此刻-穿着联动、就地编辑",
+  "description": "衣橱插件：系列/套浏览、图片分类、私密相册、字段明细、标签检索、筛选与随机、穿着记录、故事时间线",
   "icon": "icon.svg",
   "exports": {
     ".": "./index.js",
@@ -38,5 +38,11 @@
   "engines": {
     "node": ">=20"
   },
-  "dependencies": {}
+  "dependencies": {},
+  "keywords": [
+    "deepseek-harness",
+    "plugin",
+    "wardrobe",
+    "gallery"
+  ]
 }

@@ -1,18 +1,18 @@
-/* 鱼鱼的衣橱 — Client 半边：左栏图标 + 整页衣橱。
+/* dsh-wardrobe — Client 半边：左栏图标 + 整页衣橱。
    系列大 tab / 套小 tab / 设定图 / 字段明细（发型上衣下衣裙鞋配饰包）/ 搜索 / 能出门筛选 / 随机一套 / 此刻-穿着联动。 */
 window.__ModuleLoader__.load({
-  id: '@local/yuyu-wardrobe',
+  id: '@local/dsh-wardrobe',
   factory(require) {
     const React = require('react');
     const h = React.createElement;
     const { useCallback, useEffect, useMemo, useRef, useState } = React;
 
-    const PANEL_ID = 'yuyu-wardrobe';
+    const PANEL_ID = 'dsh-wardrobe';
     const BASE = (() => {
       try {
-        if (typeof document !== 'undefined' && document.baseURI) return String(new URL('yuyu-wardrobe/', document.baseURI));
+        if (typeof document !== 'undefined' && document.baseURI) return String(new URL('dsh-wardrobe/', document.baseURI));
       } catch (error) { /* ignore */ }
-      return '/yuyu-wardrobe/';
+      return '/dsh-wardrobe/';
     })();
     const DATA_URL = `${BASE}data.json`;
     const WEAR_URL = `${BASE}wear`;
@@ -22,7 +22,7 @@ window.__ModuleLoader__.load({
     const LOCK_URL = `${BASE}lock`;
 
     /** 解锁令牌：放内存 + sessionStorage，关掉浏览器就没了。 */
-    const KEY_STORE = 'yuyu-wardrobe.key';
+    const KEY_STORE = 'dsh-wardrobe.key';
     let KEY = (() => {
       try {
         return window.sessionStorage.getItem(KEY_STORE) || '';
@@ -50,14 +50,14 @@ window.__ModuleLoader__.load({
 
     const readPref = (key, fallback) => {
       try {
-        return window.localStorage.getItem(`yuyu-wardrobe.${key}`) || fallback;
+        return window.localStorage.getItem(`dsh-wardrobe.${key}`) || fallback;
       } catch {
         return fallback;
       }
     };
     const writePref = (key, value) => {
       try {
-        window.localStorage.setItem(`yuyu-wardrobe.${key}`, value);
+        window.localStorage.setItem(`dsh-wardrobe.${key}`, value);
       } catch {
         /* 隐私模式：记不住就算了 */
       }
@@ -363,7 +363,7 @@ window.__ModuleLoader__.load({
       const [catEditing, setCatEditing] = useState(false);
       const [adminMsg, setAdminMsg] = useState('');
       const [sideTab, setSideTab] = useState(() => {
-        try { return localStorage.getItem('yuyu-wardrobe.side') || 'spec'; } catch { return 'spec'; }
+        try { return localStorage.getItem('dsh-wardrobe.side') || 'spec'; } catch { return 'spec'; }
       });
       const [story, setStory] = useState(null);
       const [storyBusy, setStoryBusy] = useState(false);
@@ -836,7 +836,7 @@ window.__ModuleLoader__.load({
 
       const pickSide = (tab) => {
         setSideTab(tab);
-        try { localStorage.setItem('yuyu-wardrobe.side', tab); } catch { /* 记不住就算了 */ }
+        try { localStorage.setItem('dsh-wardrobe.side', tab); } catch { /* 记不住就算了 */ }
       };
 
       const loadStory = async (id) => {
@@ -976,7 +976,7 @@ window.__ModuleLoader__.load({
       };
 
       const header = h('div', { className: 'yw-head' },
-        h('div', { className: 'yw-title' }, '鱼鱼的衣橱'),
+        h('div', { className: 'yw-title' }, '衣橱'),
         h('div', { className: 'yw-sub' },
           data
             ? (filter === 'all' && !query.trim()
@@ -1077,7 +1077,7 @@ window.__ModuleLoader__.load({
             lockErr ? h('div', { className: 'yw-toast', 'data-err': '1' }, lockErr) : null)
           : h('div', { className: 'yw-lock' },
             h('b', null, '还没设密码'),
-            h('p', null, '私密照要先设一个密码。密码存在本机的 ~/.dsh/yuyu-wardrobe/settings.json，不进 git。'),
+            h('p', null, '私密照要先设一个密码。密码存在本机的 ~/.dsh/dsh-wardrobe/settings.json，不进 git。'),
             h('button', { type: 'button', className: 'yw-primary', onClick: () => setPwdOpen(true) }, '去设密码')))
         : null;
 
@@ -1265,7 +1265,7 @@ window.__ModuleLoader__.load({
             row.edited ? h('span', { className: 'yw-sedited' }, '改过') : null,
             h('div', { className: 'yw-grow' }),
             h('button', {
-              type: 'button', className: 'yw-drop', title: '叫鱼鱼把这段改写成一句时间线',
+              type: 'button', className: 'yw-drop', title: '用模型把这段改写成一句时间线',
               disabled: sRewriting === row.key,
               onClick: () => rewriteStory(row.key),
             }, sRewriting === row.key ? '…' : '重写'),
@@ -1447,7 +1447,7 @@ window.__ModuleLoader__.load({
           h('div', { className: 'yw-dialog', onClick: (event) => event.stopPropagation() },
             h('h3', null, '备份 / 换电脑'),
             h('p', null, '这套衣橱的改动（字段、标签、图的归类、移出的图、私密密码）都存在本机：'),
-            h('code', null, '~/.dsh/yuyu-wardrobe/'),
+            h('code', null, '~/.dsh/dsh-wardrobe/'),
             h('p', null, '图片本身不在里面 —— 图在 ctx/图库/衣橱图库/，跟着工作区走。换电脑把这两样搬过去就行。'),
             h('div', { className: 'yw-lockrow' },
               h('a', { className: 'yw-primary', href: `${BASE}export`, download: '' }, '导出设置文件'),
@@ -1530,7 +1530,7 @@ window.__ModuleLoader__.load({
           }, WardrobePage);
           const stopIcon = pageCtx.slots.inject('sidebar.panellist', () => pageCtx.slots.register({
             name: 'sidebar.panellist', id: PANEL_ID, order: 12,
-            label: '鱼鱼的衣橱',
+            label: '衣橱',
           }, HangerIcon));
           return () => {
             stopIcon();

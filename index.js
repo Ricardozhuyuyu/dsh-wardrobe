@@ -1,7 +1,6 @@
 /**
- * 鱼鱼的衣橱 — Host 半边。
- * 只读扫描 default-workspace 的衣橱图库与衣橱清单，产出 JSON + 图片字节流。
- * 不写那边任何文件。
+ * dsh-wardrobe — Host 半边。
+ * 只读扫描工作区里的衣橱图库与清单，产出 JSON + 图片字节流；只写「当前穿着」那个文件。
  */
 import { readdir, readFile, stat, writeFile, rename, rm, mkdir } from 'node:fs/promises';
 import { join, extname, basename, dirname, relative, isAbsolute, resolve } from 'node:path';
@@ -12,27 +11,43 @@ import { fileURLToPath } from 'node:url';
 /**
  * 衣橱图库在哪。换电脑 / 换系统只改这一处：
  * 1) 插件配置 root（cordis.patch.yml 里 config.root）
- * 2) 环境变量 YUYU_WARDROBE_ROOT
+ * 2) 环境变量 DSH_WARDROBE_ROOT
  * 3) 默认 ~/Documents/deepseek-harness/default-workspace
  */
 function resolveRoot(configRoot) {
   const pick = (value) => (typeof value === 'string' && value.trim() ? value.trim() : '');
   const chosen = pick(configRoot)
-    || pick(process.env.YUYU_WARDROBE_ROOT)
+    || pick(process.env.DSH_WARDROBE_ROOT)
     || join(homedir(), 'Documents', 'deepseek-harness', 'default-workspace');
   // Windows 上从资源管理器复制来的路径可能带引号、反斜杠或末尾分隔符
   const cleaned = chosen.replace(/^["']|["']$/g, '').replace(/[\\/]+$/, '');
   return cleaned || chosen;
 }
 
-let ROOT = resolveRoot();
-let GALLERY = join(ROOT, 'ctx', '图库', '衣橱图库');
-let LIST_FILE = join(ROOT, 'ctx', '衣橱', '衣橱清单.md');
+const DEFAULT_PATHS = {
+  gallery: 'ctx/gallery/wardrobe',
+  list: 'ctx/gallery/list.md',
+  state: 'ctx/state/wearing.md',
+};
+const DEFAULT_MEMORY_DIRS = ['ctx/memory', 'ctx/records', 'ctx/travel', 'ctx/notes'];
 
-function useRoot(root) {
-  ROOT = resolveRoot(root);
-  GALLERY = join(ROOT, 'ctx', '图库', '衣橱图库');
-  LIST_FILE = join(ROOT, 'ctx', '衣橱', '衣橱清单.md');
+let CONFIG = {};
+let ROOT = resolveRoot();
+let GALLERY = join(ROOT, DEFAULT_PATHS.gallery);
+let LIST_FILE = join(ROOT, DEFAULT_PATHS.list);
+let STATE_REL = DEFAULT_PATHS.state;
+let MEMORY_DIRS = DEFAULT_MEMORY_DIRS.slice();
+
+function useRoot(config) {
+  CONFIG = config && typeof config === 'object' ? config : {};
+  ROOT = resolveRoot(CONFIG.root);
+  const paths = CONFIG.paths && typeof CONFIG.paths === 'object' ? CONFIG.paths : {};
+  GALLERY = join(ROOT, paths.gallery || DEFAULT_PATHS.gallery);
+  LIST_FILE = join(ROOT, paths.list || DEFAULT_PATHS.list);
+  STATE_REL = paths.state || DEFAULT_PATHS.state;
+  MEMORY_DIRS = Array.isArray(CONFIG.memoryDirs) && CONFIG.memoryDirs.length
+    ? CONFIG.memoryDirs.slice()
+    : DEFAULT_MEMORY_DIRS.slice();
   cache = { at: 0, data: null };
 }
 
@@ -67,14 +82,19 @@ const MIME = {
   '.webp': 'image/webp', '.gif': 'image/gif',
 };
 
-const SERIES = [
-  { key: 'G', label: '出门', note: '街头与旅行' },
-  { key: 'Y', label: '宴会', note: '正式' },
-  { key: 'H', label: '家里', note: '日常' },
-  { key: 'S', label: '学生', note: '制服' },
-  { key: 'C', label: '扮别人', note: 'Cosplay' },
-  { key: 'X', label: '特殊场合', note: '只给一个人看' },
-];
+/** 系列分组：配置里给了就按配置，否则按编号首字母自动分组。 */
+function seriesMeta(config = {}) {
+  if (Array.isArray(config.series) && config.series.length) {
+    return config.series
+      .filter((row) => row && typeof row.key === 'string')
+      .map((row) => ({
+        key: row.key.trim().toUpperCase().slice(0, 1),
+        label: row.label ? String(row.label) : `系列 ${row.key}`,
+        note: row.note ? String(row.note) : '',
+      }));
+  }
+  return [];
+}
 
 const TTL_MS = 10_000;
 let cache = { at: 0, data: null };
@@ -294,12 +314,21 @@ async function build() {
 
   const compilations = images.filter((img) => img.name.startsWith('合集'));
 
-  const series = SERIES.map((meta) => ({ key: meta.key, label: meta.label, note: meta.note, items: [] }));
+  const meta = seriesMeta(CONFIG);
+  const series = meta.map((row) => ({ key: row.key, label: row.label, note: row.note, items: [] }));
+  const ensureSeries = (key) => {
+    let bucket = series.find((row) => row.key === key);
+    if (!bucket) {
+      const fallback = meta.find((row) => row.key === key);
+      bucket = { key, label: fallback?.label || `系列 ${key}`, note: fallback?.note || '', items: [] };
+      series.push(bucket);
+    }
+    return bucket;
+  };
 
   for (const outfit of byId.values()) {
     const seriesKey = outfit.id[0];
-    const bucket = series.find((s) => s.key === seriesKey);
-    if (!bucket) continue;
+    const bucket = ensureSeries(seriesKey);
     if (outfit.id.startsWith('O-')) continue;
 
     const compact = outfit.id.replace(/-/g, '').toLowerCase();
@@ -514,11 +543,11 @@ async function serveImage(req, res, relPath, unlocked = false) {
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 /** 用户改的那份（编辑字段/加标签都落这里，重装插件也不会丢）。 */
-const STATE_DIR = process.env.YUYU_WARDROBE_STATE || join(homedir(), '.dsh', 'yuyu-wardrobe');
+const STATE_DIR = process.env.DSH_WARDROBE_STATE || join(homedir(), '.dsh', 'dsh-wardrobe');
 const OVERLAY_FILE = join(STATE_DIR, 'fields.json');
 const OVERLAY_SEED = join(HERE, 'data/fields.json');
 /** 此刻-穿着.md 的位置也跟着 ROOT 走（换电脑只改 root）。 */
-const stateFile = () => join(ROOT, 'ctx', '状态', '此刻-穿着.md');
+const stateFile = () => join(ROOT, STATE_REL);
 
 /* ---------- 私密照：密码 + 解锁令牌 ---------- */
 
@@ -668,7 +697,7 @@ const TAG_RULES = [
   { tag: '宴会', re: /宴会|晚宴|礼服/ },
   { tag: '居家', re: /家居|在家里|睡|浴缸/ },
   { tag: '制服', re: /制服|校服|校|领结/ },
-  { tag: 'Cosplay', re: /cos|扮别人|谕女|角色/i },
+  { tag: 'Cosplay', re: /cosplay|cos服装|角色扮演/i },
 ];
 
 /** 一句话版本：按穿上身的顺序拼，出图就照这一行。 */
@@ -881,7 +910,7 @@ async function wearNow({ id, state: stateText, when }) {
   const outfit = (await getData(false)).series
     .flatMap((bucket) => bucket.items)
     .find((item) => item.id === id);
-  if (!outfit) throw new Error(`衣橱里没有 ${id}`);
+  if (!outfit) throw new Error(`outfit not found: ${id}`);
 
   const raw = await readFile(stateFile(), 'utf8').catch(() => '');
   const eolIn = raw
@@ -950,7 +979,7 @@ function briefFields(outfit, keys, max = 24) {
     .filter(Boolean);
 }
 
-/** 用户那份 overlay：~/.dsh/yuyu-wardrobe/fields.json，第一次从插件自带的那份种子复制过来。 */
+/** 用户那份 overlay：~/.dsh/dsh-wardrobe/fields.json，第一次从插件自带的那份种子复制过来。 */
 async function readOverlay() {
   let text = await readText(OVERLAY_FILE).catch(() => '');
   if (!text.trim()) {
@@ -1023,16 +1052,8 @@ async function saveCats(list) {
 }
 
 /** 读「故事」要扫的地方（都是小 md，不含会话导出）。 */
-const MEMORY_DIRS = [
-  'ctx/记忆', 'ctx/记录', 'ctx/状态', 'ctx/旅行', 'ctx/设定', 'ctx/资料',
-  'ctx/同步', 'xingxi', '合并-总记忆线', 'ctx/历史',
-];
-/** 改过名的套：老名字也认，不然改名前的记录搜不到。 */
-const BUILT_IN_ALIASES = {
-  'G-01': ['白靴套', '白靴'],
-  'G-02': ['黑靴套', '黑靴'],
-};
-const STORY_SKIP = /README|怎么合|更新日志|插件-|索引\.md$|世界快照|来源对照|每天的设备/;
+const BUILT_IN_ALIASES = {};
+const STORY_SKIP = /README|CHANGELOG|node_modules|\/index\.md$/;
 
 async function listMdFiles(dir, depth = 0) {
   if (depth > 3) return [];
@@ -1080,7 +1101,7 @@ function cleanStory(text) {
     .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/`[^`]*`/g, ' ')
-    .replace(/(ctx|合并-总记忆线|~\.dsh)[^\s，。；、）]*/g, ' ')
+    .replace(/(ctx|~\.dsh)[^\s，。；、）]*/g, ' ')
     .replace(/[A-Za-z0-9_-]+\.(md|json|jpg|jpeg|png|webp)/gi, ' ')
     .replace(/\*\*/g, '')
     .replace(/~~/g, '')
@@ -1194,7 +1215,7 @@ function narrate(text) {
   });
   let line = pieces.join('；');
   if (!/穿|这身|这套/.test(line)) line = line.replace(/^([^，]*，)?/, (head) => `${head || ''}穿着这套，`);
-  line = line.replace(/本鱼/g, '鱼鱼').replace(/\s+/g, ' ').replace(/^[，、]/, '');
+  line = line.replace(/\s+/g, ' ').replace(/^[，、]/, '');
   return /[。！？]$/.test(line) ? line : `${line}。`;
 }
 
@@ -1237,7 +1258,7 @@ async function storyCandidates(id, keyword = '') {
   const key = normId(id);
   const data = await getData(false);
   const outfit = data.series.flatMap((bucket) => bucket.items).find((item) => item.id === key);
-  if (!outfit) throw new Error(`衣橱里没有 ${key}`);
+  if (!outfit) throw new Error(`outfit not found: ${key}`);
   const overlay = await readOverlay();
   const picked = new Set((overlay[key]?.story || []).map((row) => row.key));
   const seen = new Set();
@@ -1363,7 +1384,7 @@ async function rewriteStory(ctx, { id, key }) {
   if (!llm) throw new Error('这台机器上没有 llm 服务，改不了');
   const data = await getData(false);
   const outfit = data.series.flatMap((bucket) => bucket.items).find((item) => item.id === normId(id));
-  if (!outfit) throw new Error(`衣橱里没有 ${id}`);
+  if (!outfit) throw new Error(`outfit not found: ${id}`);
   const overlay = await readOverlay();
   const entry = overlay[outfit.id] || {};
   let raw = '';
@@ -1416,8 +1437,8 @@ async function rewriteStory(ctx, { id, key }) {
 
 function readRewriteConfig() {
   return {
-    provider: process.env.YUYU_WARDROBE_PROVIDER || 'deepseek-account',
-    model: process.env.YUYU_WARDROBE_MODEL || 'deepseek-flash',
+    provider: process.env.DSH_WARDROBE_PROVIDER || 'deepseek-account',
+    model: process.env.DSH_WARDROBE_MODEL || 'deepseek-flash',
   };
 }
 
@@ -1426,7 +1447,7 @@ async function storyFor(id) {
   if (!key) throw new Error('缺编号');
   const data = await getData(false);
   const outfit = data.series.flatMap((bucket) => bucket.items).find((item) => item.id === key);
-  if (!outfit) throw new Error(`衣橱里没有 ${key}`);
+  if (!outfit) throw new Error(`outfit not found: ${key}`);
   const overlay = await readOverlay();
 
   // 1) 设定集：ctx/衣橱/<编号>-<名字>/ 下最新的那份
@@ -1501,7 +1522,7 @@ async function saveEdit({ id, fields, tags, photos, hide, restore, aliases }) {
   const key = String(id || '').trim();
   if (!key) throw new Error('缺编号');
   const known = (await getData(false)).series.some((bucket) => bucket.items.some((item) => item.id === key));
-  if (!known) throw new Error(`衣橱里没有 ${key}`);
+  if (!known) throw new Error(`outfit not found: ${key}`);
   const overlay = await readOverlay();
   const entry = overlay[key] && typeof overlay[key] === 'object' ? overlay[key] : {};
   const nextFields = { ...(entry.fields || {}) };
@@ -1603,16 +1624,16 @@ export {
 export const inject = ['webServer'];
 
 export function apply(ctx, config) {
-  useRoot(config?.root);
+  useRoot(config);
   ctx.effect(() => ctx.webServer.register({
     kind: 'prefix',
-    path: '/yuyu-wardrobe',
+    path: '/dsh-wardrobe',
     async handler(req, res) {
       const url = new URL(req.url || '/', 'http://localhost');
       try {
         const key = url.searchParams.get('k') || String(req.headers['x-wardrobe-key'] || '');
         const unlocked = tokenValid(key);
-        if (url.pathname === '/yuyu-wardrobe/data.json') {
+        if (url.pathname === '/dsh-wardrobe/data.json') {
           const data = await getData(url.searchParams.has('refresh'));
           const settings = await readSettings();
           const payload = {
@@ -1623,22 +1644,22 @@ export function apply(ctx, config) {
           sendJson(res, 200, payload);
           return;
         }
-        if (url.pathname === '/yuyu-wardrobe/img') {
+        if (url.pathname === '/dsh-wardrobe/img') {
           await serveImage(req, res, url.searchParams.get('p'), unlocked || tokenValid(url.searchParams.get('k')));
           return;
         }
-        if (url.pathname === '/yuyu-wardrobe/settings' && req.method !== 'POST') {
+        if (url.pathname === '/dsh-wardrobe/settings' && req.method !== 'POST') {
           const settings = await readSettings();
           sendJson(res, 200, { hasPassword: Boolean(settings.hash), updatedAt: settings.updatedAt || null });
           return;
         }
-        if (url.pathname === '/yuyu-wardrobe/settings' && req.method === 'POST') {
+        if (url.pathname === '/dsh-wardrobe/settings' && req.method === 'POST') {
           const payload = await readBody(req);
           const result = await setPassword(payload);
           sendJson(res, 200, result);
           return;
         }
-        if (url.pathname === '/yuyu-wardrobe/unlock' && req.method === 'POST') {
+        if (url.pathname === '/dsh-wardrobe/unlock' && req.method === 'POST') {
           const payload = await readBody(req);
           const settings = await readSettings();
           if (!settings.hash) {
@@ -1653,77 +1674,77 @@ export function apply(ctx, config) {
           sendJson(res, 200, { ok: true, ...token });
           return;
         }
-        if (url.pathname === '/yuyu-wardrobe/lock' && req.method === 'POST') {
+        if (url.pathname === '/dsh-wardrobe/lock' && req.method === 'POST') {
           if (key) unlockTokens.delete(key);
           sendJson(res, 200, { ok: true });
           return;
         }
-        if (url.pathname === '/yuyu-wardrobe/state') {
+        if (url.pathname === '/dsh-wardrobe/state') {
           const state = await readState();
           sendJson(res, 200, state);
           return;
         }
-        if (url.pathname === '/yuyu-wardrobe/wear' && req.method === 'POST') {
+        if (url.pathname === '/dsh-wardrobe/wear' && req.method === 'POST') {
           const payload = await readBody(req);
           const state = await wearNow(payload).catch((error) => {
-            ctx.logger?.warn?.(`[yuyu-wardrobe] wear failed: ${error.message}`);
+            ctx.logger?.warn?.(`[dsh-wardrobe] wear failed: ${error.message}`);
             throw error;
           });
           cache = { at: 0, data: null };
           sendJson(res, 200, state);
           return;
         }
-        if (url.pathname === '/yuyu-wardrobe/gallery' && req.method === 'GET') {
+        if (url.pathname === '/dsh-wardrobe/gallery' && req.method === 'GET') {
           sendJson(res, 200, await gallery());
           return;
         }
-        if (url.pathname === '/yuyu-wardrobe/cats' && req.method === 'POST') {
+        if (url.pathname === '/dsh-wardrobe/cats' && req.method === 'POST') {
           const payload = await readBody(req);
           sendJson(res, 200, { ok: true, cats: await saveCats(payload?.cats) });
           return;
         }
-        if (url.pathname === '/yuyu-wardrobe/story/candidates' && req.method === 'GET') {
+        if (url.pathname === '/dsh-wardrobe/story/candidates' && req.method === 'GET') {
           sendJson(res, 200, await storyCandidates(url.searchParams.get('id'), url.searchParams.get('q') || ''));
           return;
         }
-        if (url.pathname === '/yuyu-wardrobe/story/rewrite' && req.method === 'POST') {
+        if (url.pathname === '/dsh-wardrobe/story/rewrite' && req.method === 'POST') {
           const payload = await readBody(req);
           sendJson(res, 200, await rewriteStory(ctx, payload || {}));
           return;
         }
-        if (url.pathname === '/yuyu-wardrobe/story/pick' && req.method === 'POST') {
+        if (url.pathname === '/dsh-wardrobe/story/pick' && req.method === 'POST') {
           const payload = await readBody(req);
           sendJson(res, 200, await storyPick(payload || {}));
           return;
         }
-        if (url.pathname === '/yuyu-wardrobe/story/edit' && req.method === 'POST') {
+        if (url.pathname === '/dsh-wardrobe/story/edit' && req.method === 'POST') {
           const payload = await readBody(req);
           sendJson(res, 200, await storyEdit(payload || {}));
           return;
         }
-        if (url.pathname === '/yuyu-wardrobe/story/drop' && req.method === 'POST') {
+        if (url.pathname === '/dsh-wardrobe/story/drop' && req.method === 'POST') {
           const payload = await readBody(req);
           sendJson(res, 200, await storyDrop(payload || {}));
           return;
         }
-        if (url.pathname === '/yuyu-wardrobe/story' && req.method === 'GET') {
+        if (url.pathname === '/dsh-wardrobe/story' && req.method === 'GET') {
           sendJson(res, 200, await storyFor(url.searchParams.get('id')));
           return;
         }
-        if (url.pathname === '/yuyu-wardrobe/export' && req.method === 'GET') {
+        if (url.pathname === '/dsh-wardrobe/export' && req.method === 'GET') {
           const overlay = await readOverlay();
           const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
           const body = Buffer.from(`${JSON.stringify(overlay, null, 2)}\n`, 'utf8');
           res.writeHead(200, {
             'content-type': 'application/json; charset=utf-8',
-            'content-disposition': `attachment; filename="yuyu-wardrobe-fields-${stamp}.json"`,
+            'content-disposition': `attachment; filename="dsh-wardrobe-fields-${stamp}.json"`,
             'content-length': String(body.length),
             'cache-control': 'no-store',
           });
           res.end(body);
           return;
         }
-        if (url.pathname === '/yuyu-wardrobe/import' && req.method === 'POST') {
+        if (url.pathname === '/dsh-wardrobe/import' && req.method === 'POST') {
           const payload = await readBody(req);
           if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
             sendJson(res, 400, { error: '这不像衣橱的备份文件' });
@@ -1742,7 +1763,7 @@ export function apply(ctx, config) {
           sendJson(res, 200, { ok: true, merged, total: Object.keys(current).length });
           return;
         }
-        if (url.pathname === '/yuyu-wardrobe/edit' && req.method === 'POST') {
+        if (url.pathname === '/dsh-wardrobe/edit' && req.method === 'POST') {
           const payload = await readBody(req);
           const item = await saveEdit(payload);
           sendJson(res, 200, item || { ok: true, id: payload?.id });
@@ -1752,9 +1773,9 @@ export function apply(ctx, config) {
         res.end('not found');
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        ctx.logger?.warn?.(`[yuyu-wardrobe] ${message}`);
+        ctx.logger?.warn?.(`[dsh-wardrobe] ${message}`);
         sendJson(res, 500, { error: message });
       }
     },
-  }), 'yuyu-wardrobe: routes');
+  }), 'dsh-wardrobe: routes');
 }

@@ -1,7 +1,12 @@
 - insert:
-    - id: yuyu-wardrobe
+    - id: wardrobe
       name: 'dsh-wardrobe'
       config:
-        # 衣橱图库在哪。留空 = 自动找 ~/Documents/deepseek-harness/default-workspace
-        # Windows 例：'C:/Users/你的名字/Documents/deepseek-harness/default-workspace'
+        # 工作区根目录。留空 = 环境变量 DSH_WARDROBE_ROOT，再空 = ~/Documents/deepseek-harness/default-workspace
+        # Windows 例：'C:/Users/you/Documents/deepseek-harness/default-workspace'
         root: ''
+        # 图片目录 / 清单 / 当前穿着文件，都是相对 root 的路径
+        paths:
+          gallery: ctx/gallery/wardrobe
+          list: ctx/gallery/list.md
+          state: ctx/state/wearing.md
