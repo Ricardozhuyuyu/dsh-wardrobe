@@ -432,7 +432,7 @@ window.__ModuleLoader__.load({
         ? activeSeries.items.find((item) => item.id === outfitId) || activeSeries.items[0] || null
         : null;
       const groups = activeOutfit?.groups || [];
-      // 默认先看设定整图；没有就看这套自己的图，最后才轮到合集。
+      // 默认先看设定图；没有就看这套自己的图，最后才轮到合集。
       const defaultCat = groups.find((group) => group.key === 'setting')
         || groups.find((group) => group.key === 'other')
         || groups[0] || null;

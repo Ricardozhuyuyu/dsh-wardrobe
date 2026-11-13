@@ -102,11 +102,11 @@ let cache = { at: 0, data: null };
 /** 图的分类。顺序就是页面上的顺序。 */
 /** 分类的出厂值；用户在后台改过的存在 overlay.meta.cats。 */
 const PHOTO_CATS = [
-  { key: 'setting', label: '设定整图', hint: '整套的样子，出图对着改' },
-  { key: 'anime', label: '二次元', hint: '厚涂二次元主图，可当生图参考' },
-  { key: 'real', label: '真人', hint: '真人风主图，可当生图参考' },
-  { key: 'album', label: '相册橱窗', hint: '出门、旅行、那天拍的' },
-  { key: 'private', label: '私密照', hint: '要密码才看' },
+  { key: 'setting', label: '设定图', hint: '一张图讲清整套' },
+  { key: 'primary', label: '主图', hint: '这套的标准图' },
+  { key: 'alt', label: '备选图', hint: '同一套的别的角度' },
+  { key: 'album', label: '相册', hint: '出门、旅行、那天拍的' },
+  { key: 'private', label: '私密', hint: '要密码才看' },
   { key: 'other', label: '其他', hint: '还没归类的' },
 ];
 
@@ -114,40 +114,50 @@ const PHOTO_CATS = [
 function photoCatOf(fileName, relPath = '') {
   const name = String(fileName || '');
   const dir = String(relPath || '').replace(/[^/]+$/, '');   // 只留目录部分
-  if (dir && /二次元|厚涂|anime/i.test(dir)) return 'anime';
-  if (dir && /真人|写实|real/i.test(dir)) return 'real';
+  if (dir && /主图|main/i.test(dir)) return 'primary';
+  if (dir && /备选|alt|angle/i.test(dir)) return 'alt';
   if (dir && /私密|私房|secret|private/i.test(dir)) return 'private';
-  if (dir && /相册|橱窗|纪念|旅拍|album/i.test(dir)) return 'album';
+  if (dir && /相册|橱窗|旅拍|album/i.test(dir)) return 'album';
   if (dir && /设定|setting/i.test(dir)) return 'setting';
   if (/私密|私房|私影|secret|private/i.test(name)) return 'private';
-  if (/二次元|厚涂|anime/i.test(name)) return 'anime';
-  if (/真人|写实|real/i.test(name)) return 'real';
-  if (/设定集|设定整版|设定图|整版设定/i.test(name)) return 'setting';
+  if (/设定集|设定整版|设定图|整版设定|setting/i.test(name)) return 'setting';
   if (/相册|橱窗|纪念|旅拍|出游|album/i.test(name)) return 'album';
-  if (/参考|ref\b/i.test(name)) return 'other';
   if (/^合集/.test(name)) return 'album';
   if (/参考|ref\b/i.test(name)) return 'other';
-  // 没写关键词的就是这套的标准主图（-01、-02 那种）
-  return 'anime';
+  if (/备选|alt/i.test(name)) return 'alt';
+  // 没写关键词的就是这套的标准图（-01、-02 那种）
+  return 'primary';
+}
+
+/** 配置里的分类表也走一遍清洗，跟 saveCats 规则一致。 */
+function cleanCats(list) {
+  const out = [];
+  for (const row of Array.isArray(list) ? list : []) {
+    const key = String(row?.key || '').replace(/[^A-Za-z0-9_-]/g, '');
+    if (!key || out.some((cat) => cat.key === key)) continue;
+    out.push({ key, label: stripMd(row?.label || key).slice(0, 12) || key, hint: stripMd(row?.hint || '') });
+  }
+  return out.length ? out : PHOTO_CATS;
 }
 
 /** 当前生效的分类表：出厂顺序 + overlay.meta.cats 的改名/排序/新增。 */
 function catList(overlay) {
   const saved = Array.isArray(overlay?.meta?.cats) ? overlay.meta.cats : null;
-  if (!saved || !saved.length) return PHOTO_CATS;
-  const known = new Map(PHOTO_CATS.map((cat) => [cat.key, cat]));
+  const baseCats = Array.isArray(CONFIG?.cats) && CONFIG.cats.length ? cleanCats(CONFIG.cats) : PHOTO_CATS;
+  if (!saved || !saved.length) return baseCats;
+  const known = new Map(baseCats.map((cat) => [cat.key, cat]));
   const out = [];
   for (const row of saved) {
     const key = String(row?.key || '').trim();
     if (!key) continue;
-    const base = known.get(key) || { key, hint: '' };
+    const def = known.get(key) || { key, hint: '' };
     out.push({
       key,
-      label: stripMd(row?.label || base.label || key) || key,
-      hint: stripMd(row?.hint || base.hint || ''),
+      label: stripMd(row?.label || def.label || key) || key,
+      hint: stripMd(row?.hint || def.hint || ''),
     });
   }
-  for (const cat of PHOTO_CATS) if (!out.some((row) => row.key === cat.key)) out.push(cat);
+  for (const cat of baseCats) if (!out.some((row) => row.key === cat.key)) out.push(cat);
   return out;
 }
 
