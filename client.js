@@ -1,5 +1,5 @@
 /* dsh-wardrobe — Client 半边：左栏图标 + 整页衣橱。
-   系列大 tab / 套小 tab / 设定图 / 字段明细（发型上衣下衣裙鞋配饰包）/ 搜索 / 能出门筛选 / 随机一套 / 此刻-穿着联动。 */
+   系列大 tab / 套小 tab / 设定图 / 字段明细（发型上衣下衣裙鞋配饰包）/ 搜索 / 能出门筛选 / 随机一套 / 当前穿着联动。 */
 window.__ModuleLoader__.load({
   id: '@local/dsh-wardrobe',
   factory(require) {
@@ -1270,7 +1270,7 @@ window.__ModuleLoader__.load({
               onClick: () => rewriteStory(row.key),
             }, sRewriting === row.key ? '…' : '重写'),
             h('button', { type: 'button', className: 'yw-drop', title: '改这条', onClick: () => startStoryEdit(row) }, '改'),
-            h('button', { type: 'button', className: 'yw-drop', title: row.kind === 'worn' ? '从故事里拿掉（不改 此刻-穿着.md）' : '从故事里拿掉', onClick: () => dropStory(row.key) }, '×')),
+            h('button', { type: 'button', className: 'yw-drop', title: row.kind === 'worn' ? '从故事里拿掉（不改 当前穿着文件）' : '从故事里拿掉', onClick: () => dropStory(row.key) }, '×')),
           h('div', { className: 'yw-stext' }, row.line || row.text),
           row.generated ? null : h('details', { className: 'yw-sraw' },
             h('summary', null, '看原文'),
@@ -1492,7 +1492,7 @@ window.__ModuleLoader__.load({
         ? h('div', { className: 'yw-mask', onClick: (event) => { if (event.target === event.currentTarget) setWearOpen(false); } },
           h('div', { className: 'yw-dlg' },
             h('h3', null, `记一笔：穿「${activeOutfit.name}」`),
-            h('p', null, '会改「此刻-穿着.md」的「现在」那一行，再往历史表插一行。'),
+            h('p', null, '会改「当前穿着文件」的「现在」那一行，再往历史表插一行。'),
             h('div', { className: 'yw-worn' }, activeOutfit.fieldsText || activeOutfit.summary || ''),
             h('textarea', {
               className: 'yw-ta', value: wearNote, placeholder: '人在哪、在做什么（可以不写）',

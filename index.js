@@ -546,7 +546,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const STATE_DIR = process.env.DSH_WARDROBE_STATE || join(homedir(), '.dsh', 'dsh-wardrobe');
 const OVERLAY_FILE = join(STATE_DIR, 'fields.json');
 const OVERLAY_SEED = join(HERE, 'data/fields.json');
-/** 此刻-穿着.md 的位置也跟着 ROOT 走（换电脑只改 root）。 */
+/** 当前穿着文件 的位置也跟着 ROOT 走（换电脑只改 root）。 */
 const stateFile = () => join(ROOT, STATE_REL);
 
 /* ---------- 私密照：密码 + 解锁令牌 ---------- */
@@ -841,7 +841,7 @@ function parseWear(text) {
   return map;
 }
 
-/** 读「此刻-穿着.md」的「现在」那一行。 */
+/** 读「当前穿着文件」的「现在」那一行。 */
 function parseState(text) {
   const lines = String(text || '').split(/\r?\n/);
   for (let index = 0; index < lines.length; index += 1) {
@@ -918,7 +918,7 @@ async function wearNow({ id, state: stateText, when }) {
     : (process.platform === 'win32' ? '\r\n' : '\n');
   const original = raw.replace(/\r\n?/g, '\n');
   const parsed = parseState(original);
-  if (!parsed) throw new Error('此刻-穿着.md 里没找到「现在」那一行');
+  if (!parsed) throw new Error('当前穿着文件 里没找到「现在」那一行');
 
   const stamp = (when && String(when).trim()) || stampNow();
   const lines = original.split(/\r?\n/);
@@ -1485,7 +1485,7 @@ async function storyFor(id) {
       slot: slotOf(row.when || '') || '',
       date: (fixed?.date || row.when || '').slice(0, 10),
       kind: 'worn',
-      from: '此刻-穿着',
+      from: 'current-wearing',
       edited: Boolean(fixed),
       generated: Boolean(fixed?.line),
       text: fixed?.text || cleanStory(text) || '穿过这套',
