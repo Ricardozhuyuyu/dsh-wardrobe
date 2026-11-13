@@ -1,6 +1,6 @@
 - insert:
     - id: yuyu-wardrobe
-      name: '@local/yuyu-wardrobe'
+      name: 'dsh-wardrobe'
       config:
         # 衣橱图库在哪。留空 = 自动找 ~/Documents/deepseek-harness/default-workspace
         # Windows 例：'C:/Users/你的名字/Documents/deepseek-harness/default-workspace'

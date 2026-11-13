@@ -20,11 +20,11 @@ DeepSeek Harness 的插件：左栏一个衣架图标，点开是整座衣橱。
 
 ```bash
 # 在 Harness 里，指向这个目录
-plugin_manager install_bundle target=file:/绝对路径/插件/yuyu-wardrobe
+plugin_manager install_bundle target=file:/绝对路径/插件/dsh-wardrobe
 ```
 
-装完在 profile 的 `package.json` 里会多一条 `@local/yuyu-wardrobe`，`dsh.profile.bundles` 里多一项。
-**注意：profile 下的 `node_modules/@local/yuyu-wardrobe/` 是真实拷贝，不是软链。** 改了源码要重新同步。
+装完在 profile 的 `package.json` 里会多一条 `dsh-wardrobe`，`dsh.profile.bundles` 里多一项。
+**注意：profile 下的 `node_modules/dsh-wardrobe/` 是真实拷贝，不是软链。** 改了源码要重新同步。
 
 ## 数据在哪
 
@@ -76,7 +76,7 @@ import('./index.js').then(async m => {
 })"
 
 # 改完同步进 profile（真实拷贝）
-cp index.js client.js package.json ~/.dsh/profiles/desktop/node_modules/@local/yuyu-wardrobe/
+cp index.js client.js package.json ~/.dsh/profiles/desktop/node_modules/dsh-wardrobe/
 ```
 
 改 host 半：`plugin_manager set_plugin target=include:yuyu-wardrobe enabled=false` 再 `true`。
